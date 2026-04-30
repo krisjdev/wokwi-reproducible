@@ -1,5 +1,5 @@
 default:
-    just -v
+    just -l
 
 test *flags:
     pytest {{flags}} -s tests/
