@@ -9,44 +9,61 @@
 #include "sdkconfig.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "esp_chip_info.h"
+#include "esp_log.h"
 #include "esp_flash.h"
 #include "esp_system.h"
 
-void app_main(void)
+#include "bsp/esp-bsp.h"
+#include "lvgl.h"
+
+static const char *TAG = "app";
+static lv_obj_t *title;
+
+static void button_cb() {
+    ESP_LOGI(TAG, "button clicked!");
+}
+
+uint16_t remap(uint16_t value, uint16_t  old_min, uint16_t  old_max,uint16_t  new_min, uint16_t new_max) {
+    return (uint16_t) ((((value - old_min) * (new_max - new_min)) / (old_max - old_min)) + new_min);
+}
+
+static void touch_event_cb(lv_event_t * e)
 {
-    printf("Hello world!\n");
-
-    /* Print chip information */
-    esp_chip_info_t chip_info;
-    uint32_t flash_size;
-    esp_chip_info(&chip_info);
-    printf("This is %s chip with %d CPU core(s), %s%s%s%s, ",
-           CONFIG_IDF_TARGET,
-           chip_info.cores,
-           (chip_info.features & CHIP_FEATURE_WIFI_BGN) ? "WiFi/" : "",
-           (chip_info.features & CHIP_FEATURE_BT) ? "BT" : "",
-           (chip_info.features & CHIP_FEATURE_BLE) ? "BLE" : "",
-           (chip_info.features & CHIP_FEATURE_IEEE802154) ? ", 802.15.4 (Zigbee/Thread)" : "");
-
-    unsigned major_rev = chip_info.revision / 100;
-    unsigned minor_rev = chip_info.revision % 100;
-    printf("silicon revision v%d.%d, ", major_rev, minor_rev);
-    if(esp_flash_get_size(NULL, &flash_size) != ESP_OK) {
-        printf("Get flash size failed");
+    lv_indev_t *indev = lv_indev_get_act();
+    if (!indev) {
         return;
     }
 
-    printf("%" PRIu32 "MB %s flash\n", flash_size / (uint32_t)(1024 * 1024),
-           (chip_info.features & CHIP_FEATURE_EMB_FLASH) ? "embedded" : "external");
+    lv_point_t point;
+    lv_indev_get_point(indev, &point);
 
-    printf("Minimum free heap size: %" PRIu32 " bytes\n", esp_get_minimum_free_heap_size());
+    uint16_t remap_x = remap(point.x, 0, 320, 320, 0);
+    ESP_LOGI(TAG, "touched: x: %d, y: %d", remap_x, point.y);
+}
 
-    for (int i = 10; i >= 0; i--) {
-        printf("Restarting in %d seconds...\n", i);
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
+void app_main(void)
+{
+    ESP_LOGI(TAG, "reached main");
+    bsp_display_start();
+    lv_obj_t *scr = lv_disp_get_scr_act(NULL);
+
+    bsp_display_lock(0);
+    title = lv_label_create(scr);
+    lv_label_set_text(title, "Hello World!");
+    lv_obj_set_style_text_font(title, &lv_font_montserrat_48, 0);
+    lv_obj_align(title, LV_ALIGN_CENTER, 0, 0);
+
+    lv_obj_t *button = lv_button_create(scr);
+    lv_obj_align(button, LV_ALIGN_BOTTOM_MID, 0, -10);
+    lv_obj_add_event_cb(button, button_cb, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *button_label = lv_label_create(button);
+    lv_label_set_text(button_label, "click me!");
+    lv_obj_center(button_label);
+
+    lv_indev_t *indev = bsp_display_get_input_dev();
+    if (indev) {
+        lv_indev_add_event_cb(indev, touch_event_cb, LV_EVENT_PRESSED, NULL);
     }
-    printf("Restarting now.\n");
-    fflush(stdout);
-    esp_restart();
+
+    bsp_display_unlock();
 }
