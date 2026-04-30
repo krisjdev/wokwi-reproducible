@@ -1,0 +1,13 @@
+name: test touchscreen
+version: 1
+steps:
+    - wait-serial: "app: reached main"
+    - delay: 1000ms
+    - take-screenshot:
+        part-id: esp
+        save-to: "frames/scenario_0.png"
+    - touch:
+        part-id: esp
+        x: 160
+        y: 220
+    - wait-serial: "app: button clicked!"
